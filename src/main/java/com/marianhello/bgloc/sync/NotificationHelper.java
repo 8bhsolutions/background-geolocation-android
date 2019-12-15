@@ -16,6 +16,8 @@ import com.marianhello.bgloc.ResourceResolver;
 import com.marianhello.logging.LoggerManager;
 
 public class NotificationHelper {
+    public static final String NOTIFICATION_GROUP = "bgloc.notifications";
+
     public static final String SERVICE_CHANNEL_ID = "bglocservice";
     // https://github.com/nishkarsh/android-permissions/blob/master/src/main/java/com/intentfilter/androidpermissions/services/NotificationService.java#L15
     public static final String ANDROID_PERMISSIONS_CHANNEL_ID = "android-permissions";
@@ -67,6 +69,8 @@ public class NotificationHelper {
             if (color != null && !color.isEmpty()) {
                 builder.setColor(this.parseNotificationIconColor(color));
             }
+
+            builder.setGroup(NotificationHelper.NOTIFICATION_GROUP);
 
             // Add an onclick handler to the notification
             String packageName = appContext.getPackageName();
