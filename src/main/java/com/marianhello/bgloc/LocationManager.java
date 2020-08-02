@@ -31,7 +31,8 @@ public class LocationManager {
         mContext = context;
     }
 
-    public class PermissionDeniedException extends Exception {}
+    public class PermissionDeniedException extends Exception {
+    }
 
     public static LocationManager getInstance(Context context) {
         if (mLocationManager == null) {
@@ -41,6 +42,20 @@ public class LocationManager {
     }
 
     public Promise<Location> getCurrentLocation(final int timeout, final long maximumAge, final boolean enableHighAccuracy) {
+        Criteria criteria = new Criteria();
+        criteria.setAccuracy(enableHighAccuracy ? Criteria.ACCURACY_FINE : Criteria.ACCURACY_COARSE);
+        LocationRequestStrategy requestStrategy = new CriteriaBasedStrategy(criteria);
+
+        return this.getCurrentLocation(timeout, maximumAge, requestStrategy);
+    }
+
+    public Promise<Location> getCurrentLocation(final int timeout, final long maximumAge, final String provider) {
+        LocationRequestStrategy requestStrategy = new ProviderBasedStrategy(provider);
+
+        return this.getCurrentLocation(timeout, maximumAge, requestStrategy);
+    }
+
+    private Promise<Location> getCurrentLocation(final int timeout, final long maximumAge, final LocationRequestStrategy locationRequest) {
         final Promise<Location> promise = Promises.promise();
 
         PermissionManager permissionManager = PermissionManager.getInstance(mContext);
@@ -48,11 +63,13 @@ public class LocationManager {
             @Override
             public void onPermissionGranted() {
                 try {
-                    Location currentLocation = getCurrentLocationNoCheck(timeout, maximumAge, enableHighAccuracy);
+                    Location currentLocation = getCurrentLocationNoCheck(timeout, maximumAge, locationRequest);
                     promise.set(currentLocation);
-                } catch (TimeoutException e) {
+                }
+                catch (TimeoutException e) {
                     promise.setError(e);
-                } catch (InterruptedException e) {
+                }
+                catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                 }
             }
@@ -76,8 +93,16 @@ public class LocationManager {
      * @throws InterruptedException
      * @throws TimeoutException
      */
-    @SuppressLint("MissingPermission")
     public Location getCurrentLocationNoCheck(int timeout, long maximumAge, boolean enableHighAccuracy) throws InterruptedException, TimeoutException {
+        Criteria criteria = new Criteria();
+        criteria.setAccuracy(enableHighAccuracy ? Criteria.ACCURACY_FINE : Criteria.ACCURACY_COARSE);
+        LocationRequestStrategy requestStrategy = new CriteriaBasedStrategy(criteria);
+
+        return this.getCurrentLocationNoCheck(timeout, maximumAge, requestStrategy);
+    }
+
+    @SuppressLint("MissingPermission")
+    private Location getCurrentLocationNoCheck(int timeout, long maximumAge, LocationRequestStrategy locationRequestStrategy) throws InterruptedException, TimeoutException {
         final long minLocationTime = System.currentTimeMillis() - maximumAge;
         final android.location.LocationManager locationManager = (android.location.LocationManager) mContext.getSystemService(Context.LOCATION_SERVICE);
 
@@ -91,11 +116,8 @@ public class LocationManager {
             return lastKnownNetworkLocation;
         }
 
-        Criteria criteria = new Criteria();
-        criteria.setAccuracy(enableHighAccuracy ? Criteria.ACCURACY_FINE : Criteria.ACCURACY_COARSE);
-
         CurrentLocationListener locationListener = new CurrentLocationListener();
-        locationManager.requestSingleUpdate(criteria, locationListener, Looper.getMainLooper());
+        locationRequestStrategy.requestSingleUpdate(locationManager, locationListener);
 
         if (!locationListener.mCountDownLatch.await(timeout, TimeUnit.MILLISECONDS)) {
             locationManager.removeUpdates(locationListener);
@@ -132,6 +154,44 @@ public class LocationManager {
         @Override
         public void onProviderDisabled(String s) {
 
+        }
+    }
+
+    interface LocationRequestStrategy {
+        void requestSingleUpdate(android.location.LocationManager locationManager, LocationListener locationListener);
+    }
+
+    static class CriteriaBasedStrategy implements LocationRequestStrategy {
+
+        private final Criteria criteria;
+
+        CriteriaBasedStrategy(
+                Criteria criteria
+        ) {
+            this.criteria = criteria;
+        }
+
+        @SuppressLint("MissingPermission")
+        @Override
+        public void requestSingleUpdate(android.location.LocationManager locationManager, LocationListener locationListener) {
+            locationManager.requestSingleUpdate(criteria, locationListener, Looper.getMainLooper());
+        }
+    }
+
+    static class ProviderBasedStrategy implements LocationRequestStrategy {
+
+        private final String provider;
+
+        ProviderBasedStrategy(
+                String provider
+        ) {
+            this.provider = provider;
+        }
+
+        @SuppressLint("MissingPermission")
+        @Override
+        public void requestSingleUpdate(android.location.LocationManager locationManager, LocationListener locationListener) {
+            locationManager.requestSingleUpdate(provider, locationListener, Looper.getMainLooper());
         }
     }
 }
