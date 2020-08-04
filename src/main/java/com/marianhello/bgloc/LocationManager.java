@@ -106,14 +106,9 @@ public class LocationManager {
         final long minLocationTime = System.currentTimeMillis() - maximumAge;
         final android.location.LocationManager locationManager = (android.location.LocationManager) mContext.getSystemService(Context.LOCATION_SERVICE);
 
-        Location lastKnownGPSLocation = locationManager.getLastKnownLocation(android.location.LocationManager.GPS_PROVIDER);
-        if (lastKnownGPSLocation != null && lastKnownGPSLocation.getTime() >= minLocationTime) {
+        Location lastKnownGPSLocation = locationRequestStrategy.getLastKnownLocation(locationManager, minLocationTime);
+        if (lastKnownGPSLocation != null) {
             return lastKnownGPSLocation;
-        }
-
-        Location lastKnownNetworkLocation = locationManager.getLastKnownLocation(android.location.LocationManager.NETWORK_PROVIDER);
-        if (lastKnownNetworkLocation != null && lastKnownNetworkLocation.getTime() >= minLocationTime) {
-            return lastKnownNetworkLocation;
         }
 
         CurrentLocationListener locationListener = new CurrentLocationListener();
@@ -159,8 +154,11 @@ public class LocationManager {
 
     interface LocationRequestStrategy {
         void requestSingleUpdate(android.location.LocationManager locationManager, LocationListener locationListener);
+
+        Location getLastKnownLocation(android.location.LocationManager locationManager, long minLocationTime);
     }
 
+    @SuppressLint("MissingPermission")
     static class CriteriaBasedStrategy implements LocationRequestStrategy {
 
         private final Criteria criteria;
@@ -171,13 +169,32 @@ public class LocationManager {
             this.criteria = criteria;
         }
 
-        @SuppressLint("MissingPermission")
         @Override
         public void requestSingleUpdate(android.location.LocationManager locationManager, LocationListener locationListener) {
             locationManager.requestSingleUpdate(criteria, locationListener, Looper.getMainLooper());
         }
+
+        @Override
+        public Location getLastKnownLocation(android.location.LocationManager locationManager, long minLocationTime) {
+            Location lastKnownGPSLocation = locationManager.getLastKnownLocation(android.location.LocationManager.GPS_PROVIDER);
+            if (lastKnownGPSLocation != null && lastKnownGPSLocation.getTime() >= minLocationTime) {
+                return lastKnownGPSLocation;
+            }
+
+            if (this.criteria.getAccuracy() == Criteria.ACCURACY_FINE) {
+                return null;
+            }
+
+            Location lastKnownNetworkLocation = locationManager.getLastKnownLocation(android.location.LocationManager.NETWORK_PROVIDER);
+            if (lastKnownNetworkLocation != null && lastKnownNetworkLocation.getTime() >= minLocationTime) {
+                return lastKnownNetworkLocation;
+            }
+
+            return null;
+        }
     }
 
+    @SuppressLint("MissingPermission")
     static class ProviderBasedStrategy implements LocationRequestStrategy {
 
         private final String provider;
@@ -188,10 +205,19 @@ public class LocationManager {
             this.provider = provider;
         }
 
-        @SuppressLint("MissingPermission")
         @Override
         public void requestSingleUpdate(android.location.LocationManager locationManager, LocationListener locationListener) {
             locationManager.requestSingleUpdate(provider, locationListener, Looper.getMainLooper());
+        }
+
+        @Override
+        public Location getLastKnownLocation(android.location.LocationManager locationManager, long minLocationTime) {
+            Location lastKnownGPSLocation = locationManager.getLastKnownLocation(provider);
+            if (lastKnownGPSLocation == null || lastKnownGPSLocation.getTime() < minLocationTime) {
+                return null;
+            }
+
+            return lastKnownGPSLocation;
         }
     }
 }
