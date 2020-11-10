@@ -427,6 +427,12 @@ public class BackgroundGeolocationFacade {
 
     public boolean locationServicesEnabled() throws PluginException {
         Context context = getContext();
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            final android.location.LocationManager locationManager = (android.location.LocationManager) context.getSystemService(Context.LOCATION_SERVICE);
+            return locationManager.isLocationEnabled();
+        }
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
             int locationMode = 0;
             try {
