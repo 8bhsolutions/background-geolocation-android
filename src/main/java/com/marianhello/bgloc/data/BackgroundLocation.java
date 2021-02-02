@@ -139,7 +139,7 @@ public class BackgroundLocation implements Parcelable {
         l.provider = location.getProvider();
         l.latitude = location.getLatitude();
         l.longitude = location.getLongitude();
-        l.time = location.getTime();
+        l.time = getTimeFixed(location);
         l.accuracy = location.getAccuracy();
         l.speed = location.getSpeed();
         l.bearing = location.getBearing();
@@ -157,6 +157,24 @@ public class BackgroundLocation implements Parcelable {
         }
 
         return l;
+    }
+
+    /**
+     * Get the location time, fixing the GPS Week Number Rollover issue
+     *
+     * @param location
+     * @return
+     */
+    public static long getTimeFixed(Location location) {
+        long gpsTime = location.getTime();
+
+        // Adding 1024 weeks for chips with GPS Week Number Rollover issue
+        // 1024 * 7 * 24 * 60 * 60 * 1000 = 619315200000L
+        if ((gpsTime > 0) && (gpsTime < 1546300800000L)) {
+            gpsTime += 619315200000L;
+        }
+
+        return gpsTime;
     }
 
     /**
